@@ -34,6 +34,25 @@ pipeline {
             }
         }
 
+        stage('SonarQube Quality Gate') {
+            steps {
+                // This block wraps the scanner execution with your Jenkins system configurations
+                withSonarQubeEnv('My-SonarQube-Server') { 
+                    // Adjust parameters below based on your project language (Java/Tomcat)
+                    sh '''
+                        sonar-scanner \
+                        -Dsonar.projectKey=tomcat-demo \
+                        -Dsonar.sources=. \
+                        -Dsonar.java.binaries=.
+                    '''
+                }
+                // Optional: Forces the pipeline to pause and fail if SonarQube Quality Gate fails
+                timeout(time: 60, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
         stage('Push to ECR') {
             steps {
                 script {
@@ -46,5 +65,16 @@ pipeline {
                 }
             }
         }
+
+        
     }
+    post {
+    always {
+        sh '''
+        docker rmi tomcat-demo:latest || true
+        docker rmi ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:latest || true
+        docker image prune -f
+        '''
+    }
+}
 }
